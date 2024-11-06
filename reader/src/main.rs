@@ -11,8 +11,8 @@ fn main() {
     let opts = rocksdb::Options::default();
     let db =
             DBWithThreadMode::<MultiThreaded>::open_as_secondary(&opts,
-                "../database",
-                "../database2").unwrap();
+                "/mm",
+                "/mm2").unwrap();
     loop {
         db.try_catch_up_with_primary().unwrap();
         for iter in db.iterator(rocksdb::IteratorMode::Start) {

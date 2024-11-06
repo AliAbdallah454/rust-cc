@@ -15,7 +15,7 @@ pub fn clear_db() {
 fn main() {
 
     clear_db();
-    let path = "../database";
+    let path = "/mm";
     let db =
                              DBWithThreadMode::<MultiThreaded>::open_default(path).unwrap();
     
