@@ -1,18 +1,20 @@
 
-use std::{thread, time::Duration};
+use std::{env, thread, time::Duration};
 
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 fn main() {
     
+    let args: Vec<String> = env::args().collect();
+
     println!("Starting ...");
     println!("Git test ...");
 
     let opts = rocksdb::Options::default();
     let db =
             DBWithThreadMode::<MultiThreaded>::open_as_secondary(&opts,
-                "/mm",
-                "/mm2").unwrap();
+                &args[1],
+                &args[2]).unwrap();
     loop {
         db.try_catch_up_with_primary().unwrap();
         for iter in db.iterator(rocksdb::IteratorMode::Start) {
@@ -21,7 +23,8 @@ fn main() {
                 Err(_) => return
             }
         }
-        thread::sleep(Duration::from_secs(2));
+        println!("----------------------");
+        thread::sleep(Duration::from_secs(5));
     }
 
 }

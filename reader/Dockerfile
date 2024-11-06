@@ -13,4 +13,4 @@ WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 
-CMD ["cargo", "run"]
+CMD ["cargo", "run", "/database", "/database2"]

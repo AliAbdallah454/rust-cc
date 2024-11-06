@@ -1,10 +1,10 @@
 use std::time::Duration;
 use std::{path::Path, thread};
-use std::fs;
-use rocksdb::{DBWithThreadMode, MultiThreaded, DB};
+use std::{env, fs};
+use rocksdb::{DBWithThreadMode, MultiThreaded};
 
-pub fn clear_db() {
-    let db_path = Path::new("../database");
+pub fn clear_db(path: &str) {
+    let db_path = Path::new(path);
 
     if db_path.exists() {
         fs::remove_dir_all(db_path).unwrap();
@@ -14,14 +14,15 @@ pub fn clear_db() {
 
 fn main() {
 
-    clear_db();
-    let path = "/mm";
+    let args: Vec<String> = env::args().collect();
+
+    clear_db(&args[1]);
+    let path = &args[1];
     let db =
                              DBWithThreadMode::<MultiThreaded>::open_default(path).unwrap();
     
     let mut counter = 0;
 
-    // for i in 0..100 {
     loop {
         counter += 1;
         let key = format!("key_{}", counter);
@@ -35,12 +36,5 @@ fn main() {
             thread::sleep(Duration::from_millis(5_000));
         }
     }
-
-    // for iter in db.iterator(rocksdb::IteratorMode::Start) {
-    //     match iter {
-    //         Ok((key,val)) => println!("{} -> {}", String::from_utf8(key.to_vec()).unwrap(), String::from_utf8(val.to_vec()).unwrap()),
-    //         Err(_) => return
-    //     }
-    // }
 
 }
