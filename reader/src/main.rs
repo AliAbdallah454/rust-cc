@@ -1,4 +1,6 @@
 
+use std::{thread, time::Duration};
+
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 fn main() {
@@ -18,5 +20,7 @@ fn main() {
             Err(_) => return
         }
     }
+
+    thread::sleep(Duration::from_secs(2));
 
 }

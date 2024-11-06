@@ -21,10 +21,11 @@ fn main() {
     
     let mut counter = 0;
 
-    for i in 0..100 {
+    // for i in 0..100 {
+    loop {
         counter += 1;
-        let key = format!("key_{}", i);
-        let val = format!("val_{}", i);
+        let key = format!("key_{}", counter);
+        let val = format!("val_{}", counter);
         println!("Putting :)");
         db.put(key, val).unwrap();
         thread::sleep(Duration::from_millis(1_000));
