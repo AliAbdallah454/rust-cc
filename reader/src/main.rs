@@ -2,11 +2,15 @@
 use std::{env, thread, time::Duration};
 
 use rocksdb::{DBWithThreadMode, MultiThreaded};
+use aws_sdk_s3control as s3control;
 
-fn main() {
+#[::tokio::main]
+async fn main() {
     
     let args: Vec<String> = env::args().collect();
 
+
+    
     println!("Starting ...");
     println!("Git test ...");
 
