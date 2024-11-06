@@ -13,14 +13,15 @@ fn main() {
             DBWithThreadMode::<MultiThreaded>::open_as_secondary(&opts,
                 "../database",
                 "../database2").unwrap();
-    db.try_catch_up_with_primary().unwrap();
-    for iter in db.iterator(rocksdb::IteratorMode::Start) {
-        match iter {
-            Ok((key,val)) => println!("{} -> {}", String::from_utf8(key.to_vec()).unwrap(), String::from_utf8(val.to_vec()).unwrap()),
-            Err(_) => return
+    loop {
+        db.try_catch_up_with_primary().unwrap();
+        for iter in db.iterator(rocksdb::IteratorMode::Start) {
+            match iter {
+                Ok((key,val)) => println!("{} -> {}", String::from_utf8(key.to_vec()).unwrap(), String::from_utf8(val.to_vec()).unwrap()),
+                Err(_) => return
+            }
         }
+        thread::sleep(Duration::from_secs(2));
     }
-
-    thread::sleep(Duration::from_secs(2));
 
 }
