@@ -3,8 +3,7 @@ use std::{env, thread, time::Duration};
 
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 
-#[::tokio::main]
-async fn main() {
+fn main() {
     
     let args: Vec<String> = env::args().collect();
 

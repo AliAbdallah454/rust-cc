@@ -3,27 +3,6 @@ use std::{path::Path, thread};
 use std::{env, fs};
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 
-use aws_config::meta::region::RegionProviderChain;
-use aws_config::BehaviorVersion;
-use aws_sdk_s3::{Client, Error};
-
-pub async fn upload_object(
-    client: &aws_sdk_s3::Client,
-    bucket_name: &str,
-    file_name: &str,
-    key: &str,
-) -> Result<aws_sdk_s3::operation::put_object::PutObjectOutput, Error> {
-    let body = aws_sdk_s3::primitives::ByteStream::from_path(std::path::Path::new(file_name)).await;
-    client
-        .put_object()
-        .bucket(bucket_name)
-        .key(key)
-        .body(body.unwrap())
-        .send()
-        .await
-        .map_err(Error::from)
-}
-
 pub fn clear_db(path: &str) {
     let db_path = Path::new(path);
 
@@ -33,8 +12,7 @@ pub fn clear_db(path: &str) {
     fs::create_dir_all(db_path).unwrap();
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
 
     let args: Vec<String> = env::args().collect();
 
