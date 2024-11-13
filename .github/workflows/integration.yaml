@@ -14,12 +14,13 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
-    - name: Build Docker Image
+    - name: Build Writer Docker Image
       working-directory: ./writer
       run: |
         docker build -t writer-gh .
         docker tag writer-gh $DOCKER_USERNAME/writer-gh
 
+    - name: Build Reader Docker Image
       working-directory: ./reader
       run: |
         docker build -t reader-gh .
