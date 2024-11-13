@@ -1,4 +1,4 @@
-FROM rust
+FROM python
 
 RUN apt update
 
@@ -8,6 +8,8 @@ WORKDIR /app
 
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
+
+VOLUME [ "/database" ]
 
 EXPOSE 8000
 

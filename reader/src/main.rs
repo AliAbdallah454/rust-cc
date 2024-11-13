@@ -5,16 +5,16 @@ use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 fn main() {
     
-    let args: Vec<String> = env::args().collect();
 
-
+    let db_path = env::var("DATABASE_PATH").unwrap();
+    let secondary_path = env::var("SECONDARY_PATH").unwrap();
     
     println!("Starting ...");
     println!("Git test ...");
 
     let opts = rocksdb::Options::default();
     let db = loop {
-        match DBWithThreadMode::<MultiThreaded>::open_as_secondary(&opts, &args[1], &args[2]) {
+        match DBWithThreadMode::<MultiThreaded>::open_as_secondary(&opts, &db_path, &secondary_path) {
             Ok(database) => break database,
             Err(e) => {
                 println!("Failed to open DB: {}", e);
