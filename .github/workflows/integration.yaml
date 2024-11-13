@@ -18,13 +18,13 @@ jobs:
       working-directory: ./writer
       run: |
         docker build -t writer-gh .
-        docker tag writer-gh $DOCKER_USERNAME/writer-gh
+        docker tag writer-gh ali454/writer-gh
 
     - name: Build Reader Docker Image
       working-directory: ./reader
       run: |
         docker build -t reader-gh .
-        docker tag reader-gh $DOCKER_USERNAME/reader-gh
+        docker tag reader-gh ali454/reader-gh
         
     - name: Push to Docker Registry
       # Replace the following with your Docker registry credentials and image name
