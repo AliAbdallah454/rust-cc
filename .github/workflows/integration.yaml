@@ -18,14 +18,24 @@ jobs:
       working-directory: ./writer
       run: |
         docker build -t writer-gh .
-        docker tag writer-gh ali454/writer-gh
+        docker tag writer-gh $DOCKER_USERNAME/writer-gh
+
+      working-directory: ./reader
+      run: |
+        docker build -t reader-gh .
+        docker tag reader-gh $DOCKER_USERNAME/reader-gh
         
     - name: Push to Docker Registry
       # Replace the following with your Docker registry credentials and image name
       env:
         DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-        IMAGE_NAME: writer-gh
+        WRITE_IMAGE_NAME: writer-gh
+        READ_IMAGE_NAME: reader-gh
+
       run: |
         echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-        docker push ali454/$IMAGE_NAME
+        docker push $DOCKER_USERNAME/$WRITE_IMAGE_NAME
+      run: |
+        echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+        docker push $DOCKER_USERNAME/$READ_IMAGE_NAME
