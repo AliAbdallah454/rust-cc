@@ -10,7 +10,7 @@ RUN mkdir /app
 
 WORKDIR /app
 
-VOLUME [ "/database" ]
+VOLUME [ "/database", "/database2" ]
 
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
