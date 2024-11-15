@@ -11,7 +11,8 @@ services:
       - reader
 
   writer:
-    build: ./writer
+    # build: ./writer
+    image: ali454/writer-gh
     container_name: writer_container
     volumes:
       - ./database:/database
@@ -25,7 +26,8 @@ services:
       - ROCKET_PORT=8000
 
   reader:
-    build: ./reader
+    # build: ./reader
+    image: ali454/reader-gh
     container_name: reader_container
     volumes:
       - ./database:/database
