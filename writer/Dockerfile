@@ -12,6 +12,8 @@ WORKDIR /app
 
 VOLUME [ "/database" ]
 
+EXPOSE 8000
+
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 
