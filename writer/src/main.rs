@@ -43,7 +43,7 @@ fn clear_db(path: &str) {
 #[launch]
 fn rocket() -> _ {
     let db_path = env::var("DATABASE_PATH").expect("DATABASE_PATH not set");
-    clear_db(&db_path);
+    // clear_db(&db_path);
 
     println!("Starting Rocket server...");
 
