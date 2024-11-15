@@ -1,0 +1,44 @@
+services:
+  nginx:
+    image: nginx:latest
+    container_name: nginx_proxy
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - writer
+      - reader
+
+  writer:
+    build: ./writer
+    container_name: writer_container
+    volumes:
+      - ./database:/database
+    expose:
+      - "8000"
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_PATH=/database
+      - ROCKET_ADDRESS=0.0.0.0
+      - ROCKET_PORT=8000
+
+  reader:
+    build: ./reader
+    container_name: reader_container
+    volumes:
+      - ./database:/database
+    expose:
+      - "9000"
+    ports:
+      - "9000:9000"
+    environment:
+      - DATABASE_PATH=/database
+      - SECONDARY_PATH=/database2
+      - ROCKET_ADDRESS=0.0.0.0
+      - ROCKET_PORT=9000
+
+volumes:
+  database:
+    driver: local
