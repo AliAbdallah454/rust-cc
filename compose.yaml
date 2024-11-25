@@ -12,7 +12,7 @@ services:
 
   writer:
     # build: ./writer
-    image: ali454/writer-gh
+    image: ali454/writer-gh-no-db
     container_name: writer_container
     volumes:
       - ./database:/database
@@ -27,7 +27,7 @@ services:
 
   reader:
     # build: ./reader
-    image: ali454/reader-gh
+    image: ali454/reader-gh-no-db
     container_name: reader_container
     volumes:
       - ./database:/database

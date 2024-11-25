@@ -19,24 +19,24 @@ jobs:
         DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
       working-directory: ./writer
       run: |
-        docker build -t writer-gh .
-        docker tag writer-gh $DOCKER_USERNAME/writer-gh
+        docker build -t writer-gh-no-db .
+        docker tag writer-gh-no-db $DOCKER_USERNAME/writer-gh-no-db
 
     - name: Build Reader Docker Image
       env:
         DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
       working-directory: ./reader
       run: |
-        docker build -t reader-gh .
-        docker tag reader-gh $DOCKER_USERNAME/reader-gh
+        docker build -t reader-gh-no-db .
+        docker tag reader-gh-no-db $DOCKER_USERNAME/reader-gh-no-db
         
     - name: Push to Docker Registry
       # Replace the following with your Docker registry credentials and image name
       env:
         DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-        WRITE_IMAGE_NAME: writer-gh
-        READ_IMAGE_NAME: reader-gh
+        WRITE_IMAGE_NAME: writer-gh-no-db
+        READ_IMAGE_NAME: reader-gh-no-db
 
       run: |
         echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin

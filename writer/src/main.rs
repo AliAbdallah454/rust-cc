@@ -3,6 +3,8 @@ use serde::Deserialize;
 use std::sync::Mutex;
 use std::{env, path::Path, fs, thread, time::Duration};
 
+use hostname::get;
+
 #[macro_use]
 extern crate rocket;
 
@@ -13,10 +15,13 @@ struct WriteRequest {
 }
 
 #[post("/write", data = "<write_req>")]
-fn write_data(write_req: Json<WriteRequest>) -> &'static str {
+fn write_data(write_req: Json<WriteRequest>) -> String {
+
+    let hostname = get().unwrap();
+
     println!("Writing data to DB");
     println!("Key: {}", write_req.key);
-    "Data written successfully"
+    format!("Data written successfully to {}", hostname.to_string_lossy())
 }
 
 #[launch]
