@@ -30,6 +30,14 @@ jobs:
         docker build -t reader-gh-no-db .
         docker tag reader-gh-no-db $DOCKER_USERNAME/reader-gh-no-db
         
+    - name: Build Openresty Docker Image
+      env:
+        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      working-directory: ./openresty
+      run: |
+        docker build -t openresty-gh .
+        docker tag openresty-gh $DOCKER_USERNAME/openresty-gh
+
     - name: Push to Docker Registry
       # Replace the following with your Docker registry credentials and image name
       env:
@@ -37,8 +45,10 @@ jobs:
         DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
         WRITE_IMAGE_NAME: writer-gh-no-db
         READ_IMAGE_NAME: reader-gh-no-db
+        OPENRESTY_IMAGE_NAME: openresty-gh
 
       run: |
         echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
         docker push $DOCKER_USERNAME/$WRITE_IMAGE_NAME
         docker push $DOCKER_USERNAME/$READ_IMAGE_NAME
+        docker push $DOCKER_USERNAME/$OPENRESTY_IMAGE_NAME
