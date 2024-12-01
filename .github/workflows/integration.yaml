@@ -38,6 +38,15 @@ jobs:
         docker build -t openresty-gh .
         docker tag openresty-gh $DOCKER_USERNAME/openresty-gh
 
+    - name: Build Consistent hashing server Image
+      env:
+        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      working-directory: ./consistent_hashing_server
+      run: |
+        docker build -t consistent-hashing-server-gh .
+        docker tag consistent-hashing-server-gh $DOCKER_USERNAME/consistent-hashing-server-gh
+
+
     - name: Push to Docker Registry
       # Replace the following with your Docker registry credentials and image name
       env:
@@ -46,9 +55,11 @@ jobs:
         WRITE_IMAGE_NAME: writer-gh-no-db
         READ_IMAGE_NAME: reader-gh-no-db
         OPENRESTY_IMAGE_NAME: openresty-gh
+        CONSISTENT_HASHING_SERVER_IMAGE_NAME: consistent-hashing-server-gh
 
       run: |
         echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
         docker push $DOCKER_USERNAME/$WRITE_IMAGE_NAME
         docker push $DOCKER_USERNAME/$READ_IMAGE_NAME
         docker push $DOCKER_USERNAME/$OPENRESTY_IMAGE_NAME
+        docker push $DOCKER_USERNAME/$CONSISTENT_HASHING_SERVER_IMAGE_NAME
