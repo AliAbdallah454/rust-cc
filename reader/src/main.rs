@@ -1,5 +1,5 @@
+use std::env;
 use rocket::{get, launch, routes};
-use hostname::get;
 
 #[macro_use]
 extern crate rocket;
@@ -7,7 +7,7 @@ extern crate rocket;
 
 #[get("/read")]
 fn read_data() -> String {
-    let hostname = get().unwrap().to_str().unwrap().to_string();
+    let hostname = env::var("HOSTNAME").unwrap_or("default_value".to_string());
     format!("Reading data from: {}", hostname)
 }
 

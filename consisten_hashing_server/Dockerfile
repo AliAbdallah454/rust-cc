@@ -6,9 +6,7 @@ RUN mkdir /app
 
 WORKDIR /app
 
-VOLUME [ "/database", "/database2" ]
-
-EXPOSE 9000
+EXPOSE 8000
 
 COPY Cargo.toml Cargo.lock Rocket.toml ./
 COPY src ./src
