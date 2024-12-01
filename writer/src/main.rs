@@ -5,7 +5,7 @@ use std::env;
 #[macro_use]
 extern crate rocket;
 
-#[post("/write", data = "<write_req>")]
+#[post("/", data = "<write_req>")]
 fn write_data(write_req: Json<Value>) -> String {
 
     let hostname = env::var("HOSTNAME").unwrap_or("default_value".to_string());
