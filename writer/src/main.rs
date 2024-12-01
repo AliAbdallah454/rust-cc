@@ -1,27 +1,17 @@
-use rocket::{post, routes, serde::json::Json, State};
-use serde::Deserialize;
-use std::sync::Mutex;
-use std::{env, path::Path, fs, thread, time::Duration};
-
-use hostname::get;
+use rocket::{post, serde::json::Json};
+use serde_json::Value;
+use std::env;
 
 #[macro_use]
 extern crate rocket;
 
-#[derive(Deserialize)]
-struct WriteRequest {
-    key: String,
-    value: String,
-}
-
 #[post("/write", data = "<write_req>")]
-fn write_data(write_req: Json<WriteRequest>) -> String {
+fn write_data(write_req: Json<Value>) -> String {
 
-    let hostname = get().unwrap();
+    let hostname = env::var("HOSTNAME").unwrap_or("default_value".to_string());
 
-    println!("Writing data to DB");
-    println!("Key: {}", write_req.key);
-    format!("Data written successfully to {}", hostname.to_string_lossy())
+    println!("obj: {:?}", write_req);
+    format!("Data written successfully to {}", hostname)
 }
 
 #[launch]

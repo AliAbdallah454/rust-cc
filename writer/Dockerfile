@@ -2,19 +2,13 @@ FROM rust
 
 RUN apt update
 
-# RUN apt install clang -y
-# RUN apt install llvm -y
-RUN apt install docker -y
-
 RUN mkdir /app
 
 WORKDIR /app
 
-VOLUME [ "/database" ]
+COPY Cargo.toml Cargo.lock Rocket.toml ./
+COPY src ./src
 
 EXPOSE 8000
-
-COPY Cargo.toml Cargo.lock ./
-COPY src ./src
 
 CMD ["cargo", "run"]
