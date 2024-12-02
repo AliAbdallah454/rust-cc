@@ -1,2 +1,3 @@
 /database*
 */target/
+/consistent_hashing_server/.env
