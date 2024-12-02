@@ -40,9 +40,6 @@ fn get_node(input: Json<Input>, ring: &State<Mutex<ConsistentHashing<DefaultHash
 async fn add_node(input: Json<Input>, ring: &State<Mutex<ConsistentHashing<DefaultHasher>>>, ecs: &State<aws_sdk_ecs::Client>) -> Json<Vec<Transaction>> {
     let input_value = input.value.clone();
 
-    // let cluster_name = String::from("aa-sdk-cluster");
-    // let task_name = String::from("writer-task");
-
     let cluster_name = String::from("aa-sdk-cluster");
     let task_name = String::from("writer-task");
 
