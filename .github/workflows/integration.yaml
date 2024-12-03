@@ -38,13 +38,13 @@ jobs:
         docker build -t openresty-gh .
         docker tag openresty-gh $DOCKER_USERNAME/openresty-gh
 
-    # - name: Build Consistent hashing server Image
-    #   env:
-    #     DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-    #   working-directory: ./consistent_hashing_server
-    #   run: |
-    #     docker build -t consistent-hashing-server-gh .
-    #     docker tag consistent-hashing-server-gh $DOCKER_USERNAME/consistent-hashing-server-gh
+    - name: Build Consistent hashing server Image
+      env:
+        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      working-directory: ./consistent_hashing_server
+      run: |
+        docker build -t consistent-hashing-server-gh .
+        docker tag consistent-hashing-server-gh $DOCKER_USERNAME/consistent-hashing-server-gh
 
 
     - name: Push to Docker Registry

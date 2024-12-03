@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-consistent_hasher = "0.1.1"
+consistent_hasher = "0.1.2"
 hostname = "0.4.0"
 rocket = { version = "0.5.1", features = ["json"] }
 serde = { version = "1.0", features = ["derive"] }

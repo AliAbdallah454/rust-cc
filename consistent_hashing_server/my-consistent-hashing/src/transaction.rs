@@ -1,5 +1,4 @@
-use rocket::serde::Serialize;
-
+use rocket::serde::{json::Json, Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Transaction {

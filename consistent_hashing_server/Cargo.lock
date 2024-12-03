@@ -537,9 +537,9 @@ dependencies = [
 
 [[package]]
 name = "consistent_hasher"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "140413f9d4aace5e76e5973d8eb0b6198e57b3d5da2109ba8c5c01d0f76c6944"
+checksum = "9045431a46b7c37482732f7eb290e889357a20c0786aa9284755db7549ad35bb"
 dependencies = [
  "hash",
  "instant",

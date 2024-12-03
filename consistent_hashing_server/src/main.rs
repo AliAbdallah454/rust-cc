@@ -1,12 +1,16 @@
 #[macro_use] extern crate rocket;
 
 use std::hash::DefaultHasher;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use my_consistent_hashing::transaction::Transaction;
 use rocket::serde::{json::Json, Deserialize, Serialize};
 use rocket::State;
 use my_consistent_hashing::consistent_hashing::ConsistentHashing;
+
+// use consistent_hasher::LDB;
+// use consistent_hasher::Transaction;
+// use consistent_hasher::Identifier;
 
 use aws_config::{meta::region::RegionProviderChain, BehaviorVersion};
 
@@ -36,35 +40,40 @@ fn get_node(input: Json<Input>, ring: &State<Mutex<ConsistentHashing<DefaultHash
     })
 }
 
-#[post("/add-node", format = "json", data = "<input>")]
-async fn add_node(input: Json<Input>, ring: &State<Mutex<ConsistentHashing<DefaultHasher>>>, ecs: &State<aws_sdk_ecs::Client>) -> Json<Vec<Transaction>> {
-    let input_value = input.value.clone();
+#[post("/add-task")]
+async fn add_task(ecs: &State<aws_sdk_ecs::Client>) -> String {
 
     let cluster_name = String::from("aa-sdk-cluster");
     let task_name = String::from("writer-task");
 
     let launch_response = launch_task(ecs, &cluster_name, &task_name).await;
 
-    match launch_response {
-        Ok(_) => println!("Worked"),
-        Err(e) => println!("{:?}", e)
-    }
+    println!("{:?}", launch_response);
+
+    return String::from("Task Launched");
+
+}
+
+#[post("/add-node", format = "json", data = "<input>")]
+async fn add_node(input: Json<Input>, ring: &State<Mutex<ConsistentHashing<DefaultHasher>>>) -> Json<Vec<Transaction>> {
+
+    let input_value = input.value.clone();
 
     println!("Adding node {}", input_value);
     let mut ring = ring.lock().expect("Failed to lock the consistent hashing ring");
     let transactions = ring.add_node(&input_value).unwrap();
     return Json(transactions);
+
 }
 
-#[post("/remove-node", format = "json", data = "<input>")]
-fn remove_node(input: Json<Input>, ring: &State<Mutex<ConsistentHashing<DefaultHasher>>>) -> Json<Vec<Transaction>> {
-    let input_value = input.value.clone();
-    
-    println!("Removing node {}", input_value);
-    let mut ring = ring.lock().expect("Failed to lock the consistent hashing ring");
-    let transactions = ring.remove_node(&input_value).unwrap();
-    return Json(transactions);
-}
+// #[post("/remove-node", format = "json", data = "<input>")]
+// fn remove_node(input: Json<Input>, ring: &State<Mutex<ConsistentHashing<DefaultHasher>>>) -> Json<Vec<Transaction>> {
+//     let input_value = input.value.clone();
+//     println!("Removing node {}", input_value);
+//     let mut ring = ring.lock().expect("Failed to lock the consistent hashing ring");
+//     let transactions = ring.remove_node(&input_value).unwrap();
+//     return Json(transactions);
+// }
 
 #[get("/")]
 fn hello() -> &'static str {
@@ -83,12 +92,16 @@ async fn rocket() -> _ {
     let ecs = aws_sdk_ecs::Client::new(&config);
 
     println!("Initialized ring");
-    println!("This should work now");
     let ring = ConsistentHashing::<DefaultHasher>::new(2);
     let ring = Mutex::new(ring);
 
     rocket::build()
         .manage(ring)
         .manage(ecs)
-        .mount("/", routes![hello, get_node, remove_node, add_node])
+        .mount("/", routes![
+            hello,
+            get_node,
+            add_node,
+            add_task
+        ])
 }
