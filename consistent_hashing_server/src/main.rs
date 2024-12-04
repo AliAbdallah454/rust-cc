@@ -1,20 +1,17 @@
 #[macro_use] extern crate rocket;
 
 use std::hash::DefaultHasher;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
 use my_consistent_hashing::transaction::Transaction;
 use rocket::serde::{json::Json, Deserialize, Serialize};
 use rocket::State;
 use my_consistent_hashing::consistent_hashing::ConsistentHashing;
 
-// use consistent_hasher::LDB;
-// use consistent_hasher::Transaction;
-// use consistent_hasher::Identifier;
-
 use aws_config::{meta::region::RegionProviderChain, BehaviorVersion};
 
 use consisten_hashing_server::ecs_functions::launch_task;
+use consisten_hashing_server::ecs_functions::stop_task;
 
 #[derive(Deserialize)]
 struct Input {
@@ -27,24 +24,20 @@ struct Output {
     node: String,
 }
 
-#[post("/get-node", format = "json", data = "<input>")]
-fn get_node(input: Json<Input>, ring: &State<Mutex<ConsistentHashing<DefaultHasher>>>) -> Json<Output> {
-    let input_value = input.value.clone();
-    println!("Input val is: {}", input_value);
-    let ring = ring.lock().expect("Failed to lock the consistent hashing ring");
-    let node = ring.get_node(&input_value).unwrap().to_string();
-
-    Json(Output {
-        input: input_value,
-        node,
-    })
+#[derive(Serialize, Deserialize)]
+struct TaskInfo {
+    pub cluster_name: String,
+    pub task_name: String
 }
 
-#[post("/add-task")]
-async fn add_task(ecs: &State<aws_sdk_ecs::Client>) -> String {
+#[post("/add-task", format = "json", data = "<input>")]
+async fn add_task(input: Json<TaskInfo>, ecs: &State<aws_sdk_ecs::Client>) -> String {
 
-    let cluster_name = String::from("aa-sdk-cluster");
-    let task_name = String::from("writer-task");
+    let cluster_name = input.cluster_name.clone();
+    let task_name = input.task_name.clone();
+
+    println!("cluster_name: {}", cluster_name);
+    println!("task_name: {}", task_name);
 
     let launch_response = launch_task(ecs, &cluster_name, &task_name).await;
 
@@ -64,6 +57,19 @@ async fn add_node(input: Json<Input>, ring: &State<Mutex<ConsistentHashing<Defau
     let transactions = ring.add_node(&input_value).unwrap();
     return Json(transactions);
 
+}
+
+#[post("/get-node", format = "json", data = "<input>")]
+fn get_node(input: Json<Input>, ring: &State<Mutex<ConsistentHashing<DefaultHasher>>>) -> Json<Output> {
+    let input_value = input.value.clone();
+    println!("Input val is: {}", input_value);
+    let ring = ring.lock().expect("Failed to lock the consistent hashing ring");
+    let node = ring.get_node(&input_value).unwrap().to_string();
+
+    Json(Output {
+        input: input_value,
+        node,
+    })
 }
 
 // #[post("/remove-node", format = "json", data = "<input>")]

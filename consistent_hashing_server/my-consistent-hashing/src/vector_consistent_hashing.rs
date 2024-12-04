@@ -8,7 +8,7 @@ pub struct VectorConsistentHashing {
     virtual_nodes_count: usize
 }
 
-fn insert_sorted(vec: &mut Vec<(u64, String)>, value: (u64, String)) {
+fn _insert_sorted(vec: &mut Vec<(u64, String)>, value: (u64, String)) {
     match vec.binary_search_by_key(&value.0, |x| x.0) {
         Ok(pos) | Err(pos) => vec.insert(pos, value),
     }
