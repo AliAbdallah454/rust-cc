@@ -1,7 +1,7 @@
 use std::fmt::{self, write};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Transaction<T: fmt::Display + PartialEq, N: fmt::Display + PartialOrd> {
     pub source: T,
     pub destination: T,

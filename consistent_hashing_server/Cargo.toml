@@ -13,3 +13,4 @@ my-consistent-hashing = { path = "./my-consistent-hashing" }
 aws-sdk-config = "1.52.0"
 aws-sdk-ecs = "1.56.1"
 aws-config = "1.5.10"
+reqwest = { version = "0.12.9", features = ["json"] }

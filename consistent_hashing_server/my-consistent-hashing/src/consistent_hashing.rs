@@ -1,12 +1,11 @@
-use std::{collections::{BTreeMap, HashSet}, hash::{Hash, Hasher}};
+use std::{collections::{BTreeMap, HashSet}, hash::{DefaultHasher, Hash, Hasher}};
 
 use crate::transaction::Transaction;
 
-pub struct ConsistentHashing<T: Hasher + Default> {
+pub struct ConsistentHashing {
     pub ring: BTreeMap<u64, String>,
     pub nodes: HashSet<String>,
     pub virtual_nodes_count: u32,
-    pub _hasher: T,
 }
 
 #[derive(Debug)]
@@ -18,14 +17,13 @@ pub enum ConsistentHashingError {
     UnchangedVirtualNodeCount(String)
 }
 
-impl<T: Hasher + Default> ConsistentHashing<T> {
+impl ConsistentHashing {
     
     pub fn new(virtual_nodes_count: u32) -> Self {
         return ConsistentHashing {
             ring: BTreeMap::new(),
             nodes: HashSet::new(),
             virtual_nodes_count,
-            _hasher: T::default(),
         };
     }
 
@@ -52,7 +50,7 @@ impl<T: Hasher + Default> ConsistentHashing<T> {
 
     pub fn hash<U: Hash>(&self, item: &U) -> u64 {
         // let begin = Instant::now();
-        let mut hasher = T::default();
+        let mut hasher = DefaultHasher::default();
         // println!("Hashing took {:?}", begin.elapsed());
         item.hash(&mut hasher);
         return hasher.finish();
@@ -90,7 +88,7 @@ impl<T: Hasher + Default> ConsistentHashing<T> {
     }
 
     /// hashes nodex-i ...
-    pub fn add_node(&mut self, node: &str) -> Result<Vec<Transaction>, ConsistentHashingError> {
+    pub fn add_node(&mut self, node: &str) -> Result<Vec<Transaction<String, u64>>, ConsistentHashingError> {
         if self.nodes.contains(node) {
             return Err(ConsistentHashingError::NodeAlreadyExists("This node already exist".to_string()));
         }
@@ -99,63 +97,89 @@ impl<T: Hasher + Default> ConsistentHashing<T> {
             return Err(ConsistentHashingError::ZeroVirtualNodes("Cannot add node with zero virtual nodes".to_string()));
         }    
 
-        let mut hashes = Vec::with_capacity(self.virtual_nodes_count as usize);
-        let mut transactions = vec![];
-        self.nodes.insert(node.to_string());
-
+        let mut transactions = Vec::with_capacity(self.virtual_nodes_count as usize);
         for i in 0..self.virtual_nodes_count {
+            
+            // let hash = self.hash(&(node.to_string(), i));
             let v_node = self.get_virtual_node_form(node, i);
             let hash = self.hash(&v_node);
             self.ring.insert(hash, node.to_string());
-            hashes.push(hash);
-        }
 
-        if self.nodes.len() < 2 {
-            return Ok(transactions);
-        }
-
-        let mut seen_v_node = HashSet::with_capacity(self.virtual_nodes_count as usize);
-
-        for i in 0..self.virtual_nodes_count {
-
-            let hash = hashes[i as usize];
-
-            if !seen_v_node.insert(hash) {
-                continue;
+            let next = self.get_next_node_by_hash(hash).unwrap();
+            if next.1 != node {
+                let prev = self.get_previous_node_by_hash(hash).unwrap();
+                let new_transaction = Transaction::new(
+                    next.1.to_string(),
+                    node.to_string(),
+                    *prev.0,
+                    hash
+                );
+                transactions.push(new_transaction);
             }
-
-            let mut prev_node = self.get_previous_node_by_hash(hash).expect("This should never fail. If it failed, check condition for nodes.len() > 2");
-            let mut next_node = self.get_next_node_by_hash(hash).expect("This should never fail. If it failed, check condition for nodes.len() > 2");
-
-            while prev_node.1 == node {
-                let new_hash = *prev_node.0;
-                seen_v_node.insert(new_hash);
-                prev_node = self.get_previous_node_by_hash(new_hash).unwrap();
-            }
-            
-            if next_node.1 == node {
-                let new_hash = *next_node.0;
-                seen_v_node.insert(new_hash);
-                next_node = self.get_next_node_by_hash(new_hash).unwrap();
-            }
-
-            let new_hash = *next_node.0;
-            let final_virtual_node = self.get_previous_node_by_hash(new_hash).unwrap();
-
-            let new_transaction = Transaction::new(
-                next_node.1.to_string(),
-                node.to_string(),
-                *prev_node.0, 
-                *final_virtual_node.0
-            );
-            transactions.push(new_transaction);
-
         }
-
         return Ok(transactions);
+
+        // let mut hashes = Vec::with_capacity(self.virtual_nodes_count as usize);
+        // let mut transactions = vec![];
+        // self.nodes.insert(node.to_string());
+
+        // for i in 0..self.virtual_nodes_count {
+        //     let v_node = self.get_virtual_node_form(node, i);
+        //     let hash = self.hash(&v_node);
+        //     self.ring.insert(hash, node.to_string());
+        //     hashes.push(hash);
+        // }
+
+        // if self.nodes.len() < 2 {
+        //     return Ok(transactions);
+        // }
+
+        // let mut seen_v_node = HashSet::with_capacity(self.virtual_nodes_count as usize);
+
+        // for i in 0..self.virtual_nodes_count {
+
+        //     let hash = hashes[i as usize];
+
+        //     if !seen_v_node.insert(hash) {
+        //         continue;
+        //     }
+
+        //     let mut prev_node = self.get_previous_node_by_hash(hash).expect("This should never fail. If it failed, check condition for nodes.len() > 2");
+        //     let mut next_node = self.get_next_node_by_hash(hash).expect("This should never fail. If it failed, check condition for nodes.len() > 2");
+
+        //     while prev_node.1 == node {
+        //         let new_hash = *prev_node.0;
+        //         seen_v_node.insert(new_hash);
+        //         prev_node = self.get_previous_node_by_hash(new_hash).unwrap();
+        //     }
+            
+        //     if next_node.1 == node {
+        //         let new_hash = *next_node.0;
+        //         seen_v_node.insert(new_hash);
+        //         next_node = self.get_next_node_by_hash(new_hash).unwrap();
+        //     }
+
+        //     if next_node.1 == node {
+        //         continue;
+        //     }
+
+        //     let new_hash = *next_node.0;
+        //     let final_virtual_node = self.get_previous_node_by_hash(new_hash).unwrap();
+
+        //     let new_transaction = Transaction::new(
+        //         next_node.1.to_string(),
+        //         node.to_string(),
+        //         *prev_node.0, 
+        //         *final_virtual_node.0
+        //     );
+        //     transactions.push(new_transaction);
+
+        // }
+
+        // return Ok(transactions);
     }
 
-    pub fn remove_node(&mut self, node: &str) -> Result<Vec<Transaction>, ConsistentHashingError> {
+    pub fn remove_node(&mut self, node: &str) -> Result<Vec<Transaction<String, u64>>, ConsistentHashingError> {
         if !self.nodes.contains(node) {
             return Err(ConsistentHashingError::NodeDoesNotExist("This node doesn't exist".to_string()));
         }
@@ -214,7 +238,7 @@ impl<T: Hasher + Default> ConsistentHashing<T> {
         return Ok(transactions);
     }
 
-    pub fn set_virtual_nodes_count(&mut self, count: u32) -> Result<Vec<Transaction>, ConsistentHashingError> {
+    pub fn set_virtual_nodes_count(&mut self, count: u32) -> Result<Vec<Transaction<String, u64>>, ConsistentHashingError> {
         
         if count == 0 {
             return Err(ConsistentHashingError::ZeroVirtualNodes("Cannot set virtual nodes count to 0".to_string()));
@@ -297,9 +321,9 @@ impl<T: Hasher + Default> ConsistentHashing<T> {
         return Ok(transactions);
     }
 
-    pub fn get_node<U: Hash>(&self, key: &U) -> Option<&String> {
+    pub fn get_node<U: Hash>(&self, key: &U) -> (Option<&String>, Option<u64>) {
         if self.ring.is_empty() {
-            return None;
+            return (None, None);
         }
         let hash = self.hash(key);
         println!("key hash: {}", hash);
@@ -307,7 +331,7 @@ impl<T: Hasher + Default> ConsistentHashing<T> {
             .range(hash..)
             .next()
             .or_else(|| self.ring.iter().next());
-        return Some(node.unwrap().1);
+        return (Some(node.unwrap().1), Some(hash));
             
     }
 
