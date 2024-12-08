@@ -2,7 +2,7 @@ use aws_sdk_ecs::{operation::{create_cluster::CreateClusterOutput, run_task::Run
 
 type EcsError = aws_sdk_ecs::Error;
 
-pub async fn create_cluster(ecs: &aws_sdk_ecs::Client, cluster_name: &String) -> Result<Option<CreateClusterOutput>, EcsError> {
+pub async fn create_cluster(ecs: &aws_sdk_ecs::Client, cluster_name: &str) -> Result<Option<CreateClusterOutput>, EcsError> {
 
     let create_cluster_response = ecs.create_cluster()
                             .capacity_providers("FARGATE")
@@ -17,7 +17,7 @@ pub async fn create_cluster(ecs: &aws_sdk_ecs::Client, cluster_name: &String) ->
     //
 }
 
-pub async fn launch_task(ecs: &aws_sdk_ecs::Client, cluster_name: &String, task_name: &String) -> Result<Option<RunTaskOutput>, EcsError> {
+pub async fn launch_task(ecs: &aws_sdk_ecs::Client, cluster_name: &str, task_name: &str) -> Result<Option<RunTaskOutput>, EcsError> {
 
     let subnets = vec![
         String::from("subnet-9ceab8d1"),
@@ -52,7 +52,7 @@ pub async fn launch_task(ecs: &aws_sdk_ecs::Client, cluster_name: &String, task_
 
 }
 
-pub async fn stop_task(ecs: &aws_sdk_ecs::Client, cluster_name: &String, ip: &String) ->Result<Option<StopTaskOutput>, EcsError> {
+pub async fn stop_task(ecs: &aws_sdk_ecs::Client, cluster_name: &str, ip: &str) ->Result<Option<StopTaskOutput>, EcsError> {
 
     let task_list = ecs.list_tasks()
                         .cluster(cluster_name)
@@ -85,7 +85,7 @@ pub async fn stop_task(ecs: &aws_sdk_ecs::Client, cluster_name: &String, ip: &St
 
 }
 
-pub async fn get_specific_task(ecs: &aws_sdk_ecs::Client, cluster_name: &String, task_name: &String) -> Result<Vec<String>, EcsError> {
+pub async fn get_specific_task(ecs: &aws_sdk_ecs::Client, cluster_name: &str, task_name: &str) -> Result<Vec<String>, EcsError> {
 
     let mut arns = vec![];
 

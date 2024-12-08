@@ -3,14 +3,19 @@
 use std::collections::HashMap;
 use std::hash::DefaultHasher;
 use std::net::UdpSocket;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use std::thread;
 
+use aws_sdk_config::types::error::NoRunningConfigurationRecorderException;
 use my_consistent_hashing::transaction::{self, Transaction};
+use rocket::futures::AsyncBufRead;
 use rocket::serde::{json::Json, Deserialize, Serialize};
 use rocket::{tokio, State};
 use my_consistent_hashing::consistent_hashing::ConsistentHashing;
 
 use aws_config::{meta::region::RegionProviderChain, BehaviorVersion};
+
+use consistent_hasher;
 
 use consisten_hashing_server::ecs_functions::launch_task;
 use consisten_hashing_server::ecs_functions::stop_task;
@@ -33,6 +38,116 @@ struct TaskInfo {
     pub task_name: String
 }
 
+#[post("/remove-task/<ip>")]
+async fn remove_task(ip: &str, ring: &State<Arc<Mutex<ConsistentHashing>>>, ecs: &State<aws_sdk_ecs::Client>) -> Json<Value> {
+
+    let ring_ref = Arc::clone(ring);
+    let transactions = {
+        let mut ring = ring_ref.lock().unwrap();
+        if !ring.nodes.contains(ip) {
+            return Json(serde_json::json!({
+                "message": "This node doesn't exists"
+            }));
+        }
+        let transactions = ring.remove_node(ip).unwrap();
+        drop(ring);
+        transactions
+    };
+
+    if transactions.len() == 0 {
+        return Json(serde_json::json!({
+            "message": "No transactions found"
+        }));
+    }
+
+    let mut groups = HashMap::new();
+
+    for transaction in transactions {
+        let key = (transaction.source.clone(), transaction.destination.clone());
+        groups
+            .entry(key)
+            .or_insert_with(Vec::new)
+            .push(transaction);
+    }
+    let mut handles = vec![];
+
+    for (key, transactions) in groups {
+        let handle = tokio::spawn(async move {
+
+            println!("Current transactions: ");
+            for transaction in &transactions {
+                println!("{:?}", transaction);
+            }
+
+            let source = &key.0;
+            let destination = &key.1;
+
+            let client = reqwest::Client::new();
+
+            // get exclusive from source
+            let source_uri = format!("http://{source}:7000/transactions");
+            let get_response = client.post(&source_uri).json(&transactions).send().await.expect("this should not panic");
+
+            if get_response.status() != 200 {
+                println!("Unable to get exclusive");
+                return;
+            }
+
+            let data = get_response.text().await.unwrap();
+            let json_data: Value = serde_json::from_str(&data).unwrap();
+            let (exclusive, token): (Value, String) = serde_json::from_value(json_data).unwrap();
+
+            println!("{:?}", exclusive);
+            
+            // send exclusive to destination
+            let destination_uri = format!("http://{destination}:7000/exclusive");
+            let mut post_response = None;
+            for _ in 0..2 {
+                post_response = Some(client.post(&destination_uri).json(&exclusive).send().await);
+                if post_response.as_ref().unwrap().is_ok() {
+                    break;
+                }
+                println!("Connection refused for {}, retrying", &destination);
+                tokio::time::sleep(tokio::time::Duration::from_millis(250)).await;
+            }
+
+            let post_response = post_response.unwrap().unwrap();
+            if post_response.status() != 200 {
+                println!("Exclusive wasn't ingested");
+                return;
+            }
+            println!("{:?}", post_response);
+
+            let post_data = post_response.text().await.unwrap();
+            println!("data: {}", post_data);
+
+        });
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        match handle.await {
+            Ok(_) => {
+                // let cluster_name = String::from("aa-sdk-cluster");
+                // stop_task(ecs, &cluster_name, ip).await.unwrap();
+            },
+            Err(e) => {
+                println!("A handle caused an error: {:?}", e);
+                return Json(serde_json::json!({
+                    "message": "An error has occured,"
+                }));
+            }
+        }
+    }
+
+    println!("All transactions finished");
+
+    return Json(serde_json::json!({
+        "message": "Transactions finished"
+    }));
+
+}
+
 #[post("/add-task", format = "json", data = "<input>")]
 async fn add_task(input: Json<TaskInfo>, ecs: &State<aws_sdk_ecs::Client>) -> String {
 
@@ -51,11 +166,12 @@ async fn add_task(input: Json<TaskInfo>, ecs: &State<aws_sdk_ecs::Client>) -> St
 }
 
 #[post("/add-node", format = "json", data = "<input>")]
-async fn add_node(input: Json<Input>, ring: &State<Mutex<ConsistentHashing>>) -> Json<Value> {
+async fn add_node(input: Json<Input>, ring: &State<Arc<Mutex<ConsistentHashing>>>) -> Json<Value> {
 
     let input_value = input.value.clone();
     println!("Adding node with ip: {}", input_value);
-    let mut ring = ring.lock().expect("Failed to lock the consistent hashing ring");
+    let ring_ref = Arc::clone(ring);
+    let mut ring = ring_ref.lock().expect("Failed to lock the consistent hashing ring");
     
     let transactions = match ring.add_node(&input_value) {
         Ok(transactions) => transactions,
@@ -154,14 +270,14 @@ async fn add_node(input: Json<Input>, ring: &State<Mutex<ConsistentHashing>>) ->
 }
 
 #[post("/get-node", format = "json", data = "<input>")]
-fn get_node(input: Json<Input>, ring: &State<Mutex<ConsistentHashing>>) -> Json<GetNodeOutput> {
+async fn get_node(input: Json<Input>, ring: &State<Arc<Mutex<ConsistentHashing>>>) -> Json<GetNodeOutput> {
     let input_value = input.value.clone();
     println!("Input val is: {}", input_value);
     let ring = ring.lock().expect("Failed to lock the consistent hashing ring");
     let res = ring.get_node(&input_value);
     let node = res.0.unwrap().to_string();
     let hash = res.1.unwrap().to_string(); // parse hash to string
-
+    
     println!("hash {} in {}", &hash, &node);
 
     Json(GetNodeOutput {
@@ -169,15 +285,6 @@ fn get_node(input: Json<Input>, ring: &State<Mutex<ConsistentHashing>>) -> Json<
         hash,
     })
 }
-
-// #[post("/remove-node", format = "json", data = "<input>")]
-// fn remove_node(input: Json<Input>, ring: &State<Mutex<ConsistentHashing<DefaultHasher>>>) -> Json<Vec<Transaction>> {
-//     let input_value = input.value.clone();
-//     println!("Removing node {}", input_value);
-//     let mut ring = ring.lock().expect("Failed to lock the consistent hashing ring");
-//     let transactions = ring.remove_node(&input_value).unwrap();
-//     return Json(transactions);
-// }
 
 #[get("/")]
 fn hello() -> &'static str {
@@ -204,17 +311,21 @@ async fn rocket() -> _ {
 
     let ecs = aws_sdk_ecs::Client::new(&config);
 
+    // let r = consistent_hasher::LDB::new(128, 2);
+    // let r = Mutex::new(Arc::new(r));
+
     println!("Initialized ring");
-    let ring = ConsistentHashing::new(5);
-    let ring = Mutex::new(ring);
+    let ring = ConsistentHashing::new(51);
+    let ring = Arc::new(Mutex::new(ring));
 
     rocket::build()
-        .manage(ring)
+        .manage(ring.clone())
         .manage(ecs)
         .mount("/", routes![
             hello,
             get_node,
             add_node,
-            add_task
+            add_task,
+            remove_task,
         ])
 }

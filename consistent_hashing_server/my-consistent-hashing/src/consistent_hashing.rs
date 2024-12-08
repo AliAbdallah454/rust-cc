@@ -96,7 +96,7 @@ impl ConsistentHashing {
         if self.virtual_nodes_count == 0 {
             return Err(ConsistentHashingError::ZeroVirtualNodes("Cannot add node with zero virtual nodes".to_string()));
         }    
-
+        self.nodes.insert(node.to_string());
         let mut transactions = Vec::with_capacity(self.virtual_nodes_count as usize);
         for i in 0..self.virtual_nodes_count {
             
@@ -118,65 +118,6 @@ impl ConsistentHashing {
             }
         }
         return Ok(transactions);
-
-        // let mut hashes = Vec::with_capacity(self.virtual_nodes_count as usize);
-        // let mut transactions = vec![];
-        // self.nodes.insert(node.to_string());
-
-        // for i in 0..self.virtual_nodes_count {
-        //     let v_node = self.get_virtual_node_form(node, i);
-        //     let hash = self.hash(&v_node);
-        //     self.ring.insert(hash, node.to_string());
-        //     hashes.push(hash);
-        // }
-
-        // if self.nodes.len() < 2 {
-        //     return Ok(transactions);
-        // }
-
-        // let mut seen_v_node = HashSet::with_capacity(self.virtual_nodes_count as usize);
-
-        // for i in 0..self.virtual_nodes_count {
-
-        //     let hash = hashes[i as usize];
-
-        //     if !seen_v_node.insert(hash) {
-        //         continue;
-        //     }
-
-        //     let mut prev_node = self.get_previous_node_by_hash(hash).expect("This should never fail. If it failed, check condition for nodes.len() > 2");
-        //     let mut next_node = self.get_next_node_by_hash(hash).expect("This should never fail. If it failed, check condition for nodes.len() > 2");
-
-        //     while prev_node.1 == node {
-        //         let new_hash = *prev_node.0;
-        //         seen_v_node.insert(new_hash);
-        //         prev_node = self.get_previous_node_by_hash(new_hash).unwrap();
-        //     }
-            
-        //     if next_node.1 == node {
-        //         let new_hash = *next_node.0;
-        //         seen_v_node.insert(new_hash);
-        //         next_node = self.get_next_node_by_hash(new_hash).unwrap();
-        //     }
-
-        //     if next_node.1 == node {
-        //         continue;
-        //     }
-
-        //     let new_hash = *next_node.0;
-        //     let final_virtual_node = self.get_previous_node_by_hash(new_hash).unwrap();
-
-        //     let new_transaction = Transaction::new(
-        //         next_node.1.to_string(),
-        //         node.to_string(),
-        //         *prev_node.0, 
-        //         *final_virtual_node.0
-        //     );
-        //     transactions.push(new_transaction);
-
-        // }
-
-        // return Ok(transactions);
     }
 
     pub fn remove_node(&mut self, node: &str) -> Result<Vec<Transaction<String, u64>>, ConsistentHashingError> {
