@@ -315,7 +315,7 @@ async fn rocket() -> _ {
     // let r = Mutex::new(Arc::new(r));
 
     println!("Initialized ring");
-    let ring = ConsistentHashing::new(51);
+    let ring = ConsistentHashing::new(101);
     let ring = Arc::new(Mutex::new(ring));
 
     rocket::build()

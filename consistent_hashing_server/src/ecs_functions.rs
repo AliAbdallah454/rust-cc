@@ -85,6 +85,44 @@ pub async fn stop_task(ecs: &aws_sdk_ecs::Client, cluster_name: &str, ip: &str) 
 
 }
 
+// you must handle emtpy task error
+pub async fn get_ecs_task_private_ips(ecs: &aws_sdk_ecs::Client, cluster_name: &str, task_family: &str) -> Result<Vec<String>, EcsError> {
+
+    let tasks_response = ecs
+        .list_tasks()
+        .cluster(cluster_name)
+        .family(task_family)
+        .desired_status(aws_sdk_ecs::types::DesiredStatus::Running)
+        .send()
+        .await?;
+    println!("Hi");
+    let task_arns = tasks_response.task_arns().to_vec();
+
+    let tasks_description = ecs
+        .describe_tasks()
+        .cluster(cluster_name)
+        .set_tasks(Some(task_arns))
+        .send()
+        .await?;
+
+    let mut ips = vec![];
+    for task in tasks_description.tasks() {
+        let attachments = task.attachments().to_vec();
+        let task_arn = task.task_arn().expect("Task arn should never fail");
+        for attachment in attachments {
+            for kvp in attachment.details().iter() {
+                if kvp.name() == Some("privateIPv4Address"){
+                    let ip = kvp.value().unwrap();
+                    println!("Adding {}", ip);
+                    ips.push(ip.to_string());
+                }
+            }
+        }
+    }
+    return Ok(ips);
+
+}
+
 pub async fn get_specific_task(ecs: &aws_sdk_ecs::Client, cluster_name: &str, task_name: &str) -> Result<Vec<String>, EcsError> {
 
     let mut arns = vec![];
