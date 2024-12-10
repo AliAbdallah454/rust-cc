@@ -1,24 +1,17 @@
 #[macro_use] extern crate rocket;
 
 use std::collections::HashMap;
-use std::hash::DefaultHasher;
 use std::net::UdpSocket;
 use std::sync::{Arc, Mutex};
-use std::thread;
 
-use aws_sdk_config::types::error::NoRunningConfigurationRecorderException;
-use my_consistent_hashing::transaction::{self, Transaction};
-use rocket::futures::AsyncBufRead;
 use rocket::serde::{json::Json, Deserialize, Serialize};
 use rocket::{tokio, State};
-use my_consistent_hashing::consistent_hashing::ConsistentHashing;
+use consistent_hashing_aa::consistent_hashing::ConsistentHashing;
 
 use aws_config::{meta::region::RegionProviderChain, BehaviorVersion};
 
-use consistent_hasher;
-
-use consisten_hashing_server::ecs_functions::launch_task;
-use consisten_hashing_server::ecs_functions::stop_task;
+use consisten_hashing_server::ecs_functions::{get_ecs_task_private_ips, launch_task};
+// use consisten_hashing_server::ecs_functions::stop_task;
 use serde_json::Value;
 
 #[derive(Deserialize)]
@@ -39,7 +32,7 @@ struct TaskInfo {
 }
 
 #[post("/remove-task/<ip>")]
-async fn remove_task(ip: &str, ring: &State<Arc<Mutex<ConsistentHashing>>>, ecs: &State<aws_sdk_ecs::Client>) -> Json<Value> {
+async fn remove_task(ip: &str, ring: &State<Arc<Mutex<ConsistentHashing>>>, _ecs: &State<aws_sdk_ecs::Client>) -> Json<Value> {
 
     let ring_ref = Arc::clone(ring);
     let transactions = {
@@ -95,7 +88,7 @@ async fn remove_task(ip: &str, ring: &State<Arc<Mutex<ConsistentHashing>>>, ecs:
 
             let data = get_response.text().await.unwrap();
             let json_data: Value = serde_json::from_str(&data).unwrap();
-            let (exclusive, token): (Value, String) = serde_json::from_value(json_data).unwrap();
+            let (exclusive, _): (Value, String) = serde_json::from_value(json_data).unwrap();
 
             println!("{:?}", exclusive);
             
@@ -311,12 +304,29 @@ async fn rocket() -> _ {
 
     let ecs = aws_sdk_ecs::Client::new(&config);
 
-    // let r = consistent_hasher::LDB::new(128, 2);
-    // let r = Mutex::new(Arc::new(r));
-
     println!("Initialized ring");
     let ring = ConsistentHashing::new(101);
     let ring = Arc::new(Mutex::new(ring));
+
+    let cluster_name = String::from("value");
+    let task_family = String::from("value");
+
+    // checking if there are leafs running (in case dba is restarting)
+    let ips = match get_ecs_task_private_ips(&ecs, &cluster_name, &task_family).await {
+        Ok(ip_vec) => ip_vec,
+        Err(e) => {
+            println!("Error: {:?}", e);
+            println!("Service is empty");
+            Vec::new()
+        }
+    };
+
+    {
+        let mut ring = ring.lock().unwrap();
+        for ip in ips {
+            ring.add_node(&ip).unwrap();
+        }
+    }
 
     rocket::build()
         .manage(ring.clone())

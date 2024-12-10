@@ -545,10 +545,21 @@ dependencies = [
  "aws-config",
  "aws-sdk-config",
  "aws-sdk-ecs",
+ "consistent-hashing-aa",
  "consistent_hasher",
  "hostname",
- "my-consistent-hashing",
  "reqwest",
+ "rocket",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "consistent-hashing-aa"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c630451fb3a91edd550108cc918929de1cdb7c4b7838dac9ad0abf469e615f5"
+dependencies = [
  "rocket",
  "serde",
  "serde_json",
@@ -1456,15 +1467,6 @@ name = "murmur2"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb585ade2549a017db2e35978b77c319214fa4b37cede841e27954dd6e8f3ca8"
-
-[[package]]
-name = "my-consistent-hashing"
-version = "0.1.0"
-dependencies = [
- "rocket",
- "serde",
- "serde_json",
-]
 
 [[package]]
 name = "native-tls"

@@ -6,8 +6,6 @@ RUN mkdir /app
 
 WORKDIR /app
 
-COPY my-consistent-hashing ./my-consistent-hashing
-
 COPY Cargo.toml Cargo.lock Rocket.toml ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs
 RUN cargo build --release

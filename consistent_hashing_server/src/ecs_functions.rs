@@ -108,7 +108,7 @@ pub async fn get_ecs_task_private_ips(ecs: &aws_sdk_ecs::Client, cluster_name: &
     let mut ips = vec![];
     for task in tasks_description.tasks() {
         let attachments = task.attachments().to_vec();
-        let task_arn = task.task_arn().expect("Task arn should never fail");
+        let _task_arn = task.task_arn().expect("Task arn should never fail");
         for attachment in attachments {
             for kvp in attachment.details().iter() {
                 if kvp.name() == Some("privateIPv4Address"){
