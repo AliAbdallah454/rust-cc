@@ -14,22 +14,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
-    - name: Build Writer Docker Image
-      env:
-        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-      working-directory: ./writer
-      run: |
-        docker build -t writer-gh-no-db .
-        docker tag writer-gh-no-db $DOCKER_USERNAME/writer-gh-no-db
-
-    - name: Build Reader Docker Image
-      env:
-        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-      working-directory: ./reader
-      run: |
-        docker build -t reader-gh-no-db .
-        docker tag reader-gh-no-db $DOCKER_USERNAME/reader-gh-no-db
-        
     - name: Build Openresty Docker Image
       env:
         DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
@@ -52,14 +36,10 @@ jobs:
       env:
         DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-        WRITE_IMAGE_NAME: writer-gh-no-db
-        READ_IMAGE_NAME: reader-gh-no-db
         OPENRESTY_IMAGE_NAME: openresty-gh
         CONSISTENT_HASHING_SERVER_IMAGE_NAME: consistent-hashing-server-gh
 
       run: |
         echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-        docker push $DOCKER_USERNAME/$WRITE_IMAGE_NAME
-        docker push $DOCKER_USERNAME/$READ_IMAGE_NAME
         docker push $DOCKER_USERNAME/$OPENRESTY_IMAGE_NAME
         docker push $DOCKER_USERNAME/$CONSISTENT_HASHING_SERVER_IMAGE_NAME

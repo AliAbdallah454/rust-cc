@@ -13,7 +13,6 @@ RUN cargo build --release
 COPY ./src ./src
 RUN cargo build --release
 
-
 EXPOSE 8000
 
 CMD ["cargo", "run"]
