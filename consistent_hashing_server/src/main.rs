@@ -10,8 +10,7 @@ use consistent_hashing_aa::consistent_hashing::ConsistentHashing;
 
 use aws_config::{meta::region::RegionProviderChain, BehaviorVersion};
 
-use consisten_hashing_server::ecs_functions::{get_ecs_task_private_ips, launch_task};
-// use consisten_hashing_server::ecs_functions::stop_task;
+use consisten_hashing_server::ecs_functions::{get_ecs_task_private_ips, launch_task, stop_task};
 use serde_json::Value;
 
 #[derive(Deserialize)]
@@ -31,8 +30,8 @@ struct TaskInfo {
     pub task_name: String
 }
 
-#[post("/remove-task/<ip>")]
-async fn remove_task(ip: &str, ring: &State<Arc<Mutex<ConsistentHashing>>>, _ecs: &State<aws_sdk_ecs::Client>) -> Json<Value> {
+#[post("/remove-node/<ip>")]
+async fn remove_node(ip: &str, ring: &State<Arc<Mutex<ConsistentHashing>>>, ecs: &State<aws_sdk_ecs::Client>) -> Json<Value> {
 
     let ring_ref = Arc::clone(ring);
     let transactions = {
@@ -95,7 +94,7 @@ async fn remove_task(ip: &str, ring: &State<Arc<Mutex<ConsistentHashing>>>, _ecs
             // send exclusive to destination
             let destination_uri = format!("http://{destination}:7000/exclusive");
             let mut post_response = None;
-            for _ in 0..2 {
+            for _ in 0..4 {
                 post_response = Some(client.post(&destination_uri).json(&exclusive).send().await);
                 if post_response.as_ref().unwrap().is_ok() {
                     break;
@@ -121,8 +120,8 @@ async fn remove_task(ip: &str, ring: &State<Arc<Mutex<ConsistentHashing>>>, _ecs
     for handle in handles {
         match handle.await {
             Ok(_) => {
-                // let cluster_name = String::from("aa-sdk-cluster");
-                // stop_task(ecs, &cluster_name, ip).await.unwrap();
+                let cluster_name = String::from("aa-terraform-cluster");
+                stop_task(ecs, &cluster_name, ip).await.unwrap();
             },
             Err(e) => {
                 println!("A handle caused an error: {:?}", e);
@@ -223,7 +222,7 @@ async fn add_node(input: Json<Input>, ring: &State<Arc<Mutex<ConsistentHashing>>
             
             let destination_uri = format!("http://{destination}:7000/exclusive");
             let mut post_response = None;
-            for _ in 0..2 {
+            for _ in 0..4 {
                 post_response = Some(client.post(&destination_uri).json(&exclusive).send().await);
                 if post_response.as_ref().unwrap().is_ok() {
                     break;
@@ -308,25 +307,28 @@ async fn rocket() -> _ {
     let ring = ConsistentHashing::new(101);
     let ring = Arc::new(Mutex::new(ring));
 
-    let cluster_name = String::from("value");
-    let task_family = String::from("value");
+    // let cluster_name = String::from("value");
+    // let task_family = String::from("value");
 
-    // checking if there are leafs running (in case dba is restarting)
-    let ips = match get_ecs_task_private_ips(&ecs, &cluster_name, &task_family).await {
-        Ok(ip_vec) => ip_vec,
-        Err(e) => {
-            println!("Error: {:?}", e);
-            println!("Service is empty");
-            Vec::new()
-        }
-    };
+    // // checking if there are leafs running (in case dba is restarting)
+    // let ips = match get_ecs_task_private_ips(&ecs, &cluster_name, &task_family).await {
+    //     Ok(ip_vec) => {
+    //         println!("Adding: {:?}", &ip_vec);
+    //         ip_vec
+    //     },
+    //     Err(e) => {
+    //         println!("Error: {:?}", e);
+    //         println!("Service is empty");
+    //         Vec::new()
+    //     }
+    // };
 
-    {
-        let mut ring = ring.lock().unwrap();
-        for ip in ips {
-            ring.add_node(&ip).unwrap();
-        }
-    }
+    // {
+    //     let mut ring = ring.lock().unwrap();
+    //     for ip in ips {
+    //         ring.add_node(&ip).unwrap();
+    //     }
+    // }
 
     rocket::build()
         .manage(ring.clone())
@@ -336,6 +338,6 @@ async fn rocket() -> _ {
             get_node,
             add_node,
             add_task,
-            remove_task,
+            remove_node,
         ])
 }
