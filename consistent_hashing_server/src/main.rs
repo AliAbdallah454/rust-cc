@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::net::UdpSocket;
 use std::sync::{Arc, Mutex};
 
+use rocket::futures::FutureExt;
 use rocket::serde::{json::Json, Deserialize, Serialize};
 use rocket::{tokio, State};
 use consistent_hashing_aa::consistent_hashing::ConsistentHashing;
@@ -13,6 +14,7 @@ use aws_config::{meta::region::RegionProviderChain, BehaviorVersion};
 use consisten_hashing_server::ecs_functions::{get_ecs_task_private_ips, launch_task, stop_task};
 use serde_json::Value;
 
+use consisten_hashing_server::utils::{check_alive, get_private_ip};
 #[derive(Deserialize)]
 struct Input {
     value: String,
@@ -283,13 +285,6 @@ fn hello() -> &'static str {
     "Hello, world!"
 }
 
-fn get_private_ip() -> Result<String, Box<dyn std::error::Error>> {
-    let socket = UdpSocket::bind("0.0.0.0:0")?;
-    socket.connect("8.8.8.8:80")?;
-    let local_addr = socket.local_addr()?;
-    Ok(local_addr.ip().to_string())
-}
-
 #[launch]
 async fn rocket() -> _ {
 
@@ -310,7 +305,7 @@ async fn rocket() -> _ {
     // let cluster_name = String::from("value");
     // let task_family = String::from("value");
 
-    // // checking if there are leafs running (in case dba is restarting)
+    // checking if there are leafs running (in case dba is restarting)
     // let ips = match get_ecs_task_private_ips(&ecs, &cluster_name, &task_family).await {
     //     Ok(ip_vec) => {
     //         println!("Adding: {:?}", &ip_vec);
@@ -325,8 +320,22 @@ async fn rocket() -> _ {
 
     // {
     //     let mut ring = ring.lock().unwrap();
+    //     let mut handles = vec![];
     //     for ip in ips {
-    //         ring.add_node(&ip).unwrap();
+    //         let handle = tokio::spawn(async move {
+    //             if check_alive(&ip).await {
+    //                 ring.add_node(&ip).unwrap();
+    //                 println!("Added {}", &ip);
+    //             }
+    //             else {
+    //                 println!("Failed to add {}", &ip);
+    //             }
+    //         });
+    //         handles.push(handle);
+    //     }
+        
+    //     for handle in handles {
+    //         handle.await.unwrap();
     //     }
     // }
 
