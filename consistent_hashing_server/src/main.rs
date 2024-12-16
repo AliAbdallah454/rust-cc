@@ -1,10 +1,8 @@
 #[macro_use] extern crate rocket;
 
 use std::collections::HashMap;
-use std::net::UdpSocket;
 use std::sync::{Arc, Mutex};
 
-use rocket::futures::FutureExt;
 use rocket::serde::{json::Json, Deserialize, Serialize};
 use rocket::{tokio, State};
 use consistent_hashing_aa::consistent_hashing::ConsistentHashing;
@@ -123,7 +121,7 @@ async fn remove_node(ip: &str, ring: &State<Arc<Mutex<ConsistentHashing>>>, ecs:
         match handle.await {
             Ok(_) => {
                 let cluster_name = String::from("aa-terraform-cluster");
-                stop_task(ecs, &cluster_name, ip).await.unwrap();
+                // stop_task(ecs, &cluster_name, ip).await.unwrap();
             },
             Err(e) => {
                 println!("A handle caused an error: {:?}", e);
@@ -139,23 +137,6 @@ async fn remove_node(ip: &str, ring: &State<Arc<Mutex<ConsistentHashing>>>, ecs:
     return Json(serde_json::json!({
         "message": "Transactions finished"
     }));
-
-}
-
-#[post("/add-task", format = "json", data = "<input>")]
-async fn add_task(input: Json<TaskInfo>, ecs: &State<aws_sdk_ecs::Client>) -> String {
-
-    let cluster_name = input.cluster_name.clone();
-    let task_name = input.task_name.clone();
-
-    println!("cluster_name: {}", cluster_name);
-    println!("task_name: {}", task_name);
-
-    let launch_response = launch_task(ecs, &cluster_name, &task_name).await;
-
-    println!("{:?}", launch_response);
-
-    return String::from("Task Launched");
 
 }
 
@@ -260,6 +241,23 @@ async fn add_node(input: Json<Input>, ring: &State<Arc<Mutex<ConsistentHashing>>
     return Json(serde_json::json!({
         "status": "processing"
     }));
+
+}
+
+#[post("/add-task", format = "json", data = "<input>")]
+async fn add_task(input: Json<TaskInfo>, ecs: &State<aws_sdk_ecs::Client>) -> String {
+
+    let cluster_name = input.cluster_name.clone();
+    let task_name = input.task_name.clone();
+
+    println!("cluster_name: {}", cluster_name);
+    println!("task_name: {}", task_name);
+
+    let launch_response = launch_task(ecs, &cluster_name, &task_name).await;
+
+    println!("{:?}", launch_response);
+
+    return String::from("Task Launched");
 
 }
 
