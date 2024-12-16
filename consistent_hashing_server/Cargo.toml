@@ -13,4 +13,4 @@ aws-sdk-config = "1.52.0"
 aws-sdk-ecs = "1.56.1"
 aws-config = "1.5.10"
 reqwest = { version = "0.12.9", features = ["json"] }
-consistent-hashing-aa = "0.1.0"
+consistent-hashing-aa = "0.1.70"

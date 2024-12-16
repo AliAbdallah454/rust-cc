@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+consistent_hasher = "0.1.4"
 dotenv = "0.15.0"
 get_if_addrs = "0.5.3"
 hostname = "0.4.0"

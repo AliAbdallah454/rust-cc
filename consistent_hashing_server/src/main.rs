@@ -1,10 +1,10 @@
 #[macro_use] extern crate rocket;
 
 use std::collections::HashMap;
-use std::net::UdpSocket;
 use std::sync::{Arc, Mutex};
 
-use rocket::futures::FutureExt;
+use aws_config::imds::client;
+// use consistent_hasher::Transaction;
 use rocket::serde::{json::Json, Deserialize, Serialize};
 use rocket::{tokio, State};
 use consistent_hashing_aa::consistent_hashing::ConsistentHashing;
@@ -13,6 +13,10 @@ use aws_config::{meta::region::RegionProviderChain, BehaviorVersion};
 
 use consisten_hashing_server::ecs_functions::{get_ecs_task_private_ips, launch_task, stop_task};
 use serde_json::Value;
+
+use consistent_hashing_aa::transaction::Transaction;
+
+use consisten_hashing_server::exclusives::{Exclusive, RedirectInfo};
 
 use consisten_hashing_server::utils::{check_alive, get_private_ip};
 #[derive(Deserialize)]
@@ -32,130 +36,38 @@ struct TaskInfo {
     pub task_name: String
 }
 
+#[post("/redirect", format = "json", data = "<input>")]
+async fn redirect(input: Json<RedirectInfo>) {
+
+    println!("In redirect");
+
+    let redirect_info = input.into_inner();
+
+    println!("{:?}", &redirect_info.exclusive);
+
+    let client = reqwest::Client::new();
+    let destination_url = format!("http://{}:7000/exclusive", &redirect_info.destination);
+    client.post(destination_url).json(&redirect_info.exclusive).send().await.unwrap();
+
+}
+
 #[post("/remove-node/<ip>")]
-async fn remove_node(ip: &str, ring: &State<Arc<Mutex<ConsistentHashing>>>, ecs: &State<aws_sdk_ecs::Client>) -> Json<Value> {
+async fn remove_node(ip: &str, ring: &State<Arc<Mutex<ConsistentHashing>>>, ecs: &State<aws_sdk_ecs::Client>) -> Json<Vec<Transaction<String, u64>>> {
 
     let ring_ref = Arc::clone(ring);
     let transactions = {
         let mut ring = ring_ref.lock().unwrap();
-        if !ring.nodes.contains(ip) {
-            return Json(serde_json::json!({
-                "message": "This node doesn't exists"
-            }));
-        }
+        // if !ring.nodes.contains(ip) {
+        //     return Json(serde_json::json!({
+        //         "message": "This node doesn't exists"
+        //     }));
+        // }
         let transactions = ring.remove_node(ip).unwrap();
         drop(ring);
         transactions
     };
 
-    if transactions.len() == 0 {
-        return Json(serde_json::json!({
-            "message": "No transactions found"
-        }));
-    }
-
-    let mut groups = HashMap::new();
-
-    for transaction in transactions {
-        let key = (transaction.source.clone(), transaction.destination.clone());
-        groups
-            .entry(key)
-            .or_insert_with(Vec::new)
-            .push(transaction);
-    }
-    let mut handles = vec![];
-
-    for (key, transactions) in groups {
-        let handle = tokio::spawn(async move {
-
-            println!("Current transactions: ");
-            for transaction in &transactions {
-                println!("{:?}", transaction);
-            }
-
-            let source = &key.0;
-            let destination = &key.1;
-
-            let client = reqwest::Client::new();
-
-            // get exclusive from source
-            let source_uri = format!("http://{source}:7000/transactions");
-            let get_response = client.post(&source_uri).json(&transactions).send().await.expect("this should not panic");
-
-            if get_response.status() != 200 {
-                println!("Unable to get exclusive");
-                return;
-            }
-
-            let data = get_response.text().await.unwrap();
-            let json_data: Value = serde_json::from_str(&data).unwrap();
-            let (exclusive, _): (Value, String) = serde_json::from_value(json_data).unwrap();
-
-            println!("{:?}", exclusive);
-            
-            // send exclusive to destination
-            let destination_uri = format!("http://{destination}:7000/exclusive");
-            let mut post_response = None;
-            for _ in 0..4 {
-                post_response = Some(client.post(&destination_uri).json(&exclusive).send().await);
-                if post_response.as_ref().unwrap().is_ok() {
-                    break;
-                }
-                println!("Connection refused for {}, retrying", &destination);
-                tokio::time::sleep(tokio::time::Duration::from_millis(250)).await;
-            }
-
-            let post_response = post_response.unwrap().unwrap();
-            if post_response.status() != 200 {
-                println!("Exclusive wasn't ingested");
-                return;
-            }
-            println!("{:?}", post_response);
-
-            let post_data = post_response.text().await.unwrap();
-            println!("data: {}", post_data);
-
-        });
-        handles.push(handle);
-    }
-
-    for handle in handles {
-        match handle.await {
-            Ok(_) => {
-                let cluster_name = String::from("aa-terraform-cluster");
-                stop_task(ecs, &cluster_name, ip).await.unwrap();
-            },
-            Err(e) => {
-                println!("A handle caused an error: {:?}", e);
-                return Json(serde_json::json!({
-                    "message": "An error has occured,"
-                }));
-            }
-        }
-    }
-
-    println!("All transactions finished");
-
-    return Json(serde_json::json!({
-        "message": "Transactions finished"
-    }));
-
-}
-
-#[post("/add-task", format = "json", data = "<input>")]
-async fn add_task(input: Json<TaskInfo>, ecs: &State<aws_sdk_ecs::Client>) -> String {
-
-    let cluster_name = input.cluster_name.clone();
-    let task_name = input.task_name.clone();
-
-    println!("cluster_name: {}", cluster_name);
-    println!("task_name: {}", task_name);
-
-    let launch_response = launch_task(ecs, &cluster_name, &task_name).await;
-
-    println!("{:?}", launch_response);
-
-    return String::from("Task Launched");
+    return Json(transactions);
 
 }
 
@@ -263,6 +175,23 @@ async fn add_node(input: Json<Input>, ring: &State<Arc<Mutex<ConsistentHashing>>
 
 }
 
+#[post("/add-task", format = "json", data = "<input>")]
+async fn add_task(input: Json<TaskInfo>, ecs: &State<aws_sdk_ecs::Client>) -> String {
+
+    let cluster_name = input.cluster_name.clone();
+    let task_name = input.task_name.clone();
+
+    println!("cluster_name: {}", cluster_name);
+    println!("task_name: {}", task_name);
+
+    let launch_response = launch_task(ecs, &cluster_name, &task_name).await;
+
+    println!("{:?}", launch_response);
+
+    return String::from("Task Launched");
+
+}
+
 #[post("/get-node", format = "json", data = "<input>")]
 async fn get_node(input: Json<Input>, ring: &State<Arc<Mutex<ConsistentHashing>>>) -> Json<GetNodeOutput> {
     let input_value = input.value.clone();
@@ -299,7 +228,7 @@ async fn rocket() -> _ {
     let ecs = aws_sdk_ecs::Client::new(&config);
 
     println!("Initialized ring");
-    let ring = ConsistentHashing::new(101);
+    let ring = ConsistentHashing::new(6);
     let ring = Arc::new(Mutex::new(ring));
 
     // let cluster_name = String::from("value");
@@ -348,5 +277,6 @@ async fn rocket() -> _ {
             add_node,
             add_task,
             remove_node,
+            redirect
         ])
 }

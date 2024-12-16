@@ -556,9 +556,9 @@ dependencies = [
 
 [[package]]
 name = "consistent-hashing-aa"
-version = "0.1.0"
+version = "0.1.70"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c630451fb3a91edd550108cc918929de1cdb7c4b7838dac9ad0abf469e615f5"
+checksum = "2e41f5d93bec1f25b5ef0623fb68e5ce3f09f514c8e6864a02e4c8dcf9d8d924"
 dependencies = [
  "rocket",
  "serde",

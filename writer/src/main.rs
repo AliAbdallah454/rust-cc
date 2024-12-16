@@ -1,63 +1,57 @@
-use reqwest::Client;
-use rocket::{post, serde::json::Json};
-use serde_json::Value;
-use std::{collections::HashMap, env, error::Error, net::UdpSocket};
-use writer::transaction::Transaction;
+use consistent_hasher::{LDB, Identifier};
 
-use dotenv::dotenv;
+fn u128_to_string(mut number: u128) -> String {
+    let mut output = String::new();
 
-#[macro_use]
-extern crate rocket;
+    while number != 0 {
+        let part = number % 1_000;
+        number = number / 1_000;
+        output.push_str(&part.to_string());
+        output.push('.');
+    }
+    output.pop();
 
-// #[get("/get-data", data = "<transaction>")]
-// fn get_data(transaction: Json<Transaction<String, u128>>) -> Json<> {
-    
-// }
+    let mut vectored: Vec<_> = output.split('.').collect();
+    let n = vectored.len();
 
-#[post("/", data = "<write_req>")]
-fn write_data(write_req: Json<Value>) -> String {
+    for i in 0..2 {
+        let temp = vectored[i];
+        vectored[i] = vectored[n - i - 1];
+        vectored[n - i - 1] = temp;
+    }
 
-    let hostname = env::var("HOSTNAME").unwrap_or("default_value".to_string());
-
-    println!("obj: {:?}", write_req);
-    format!("Data written successfully to {}", hostname)
-}
-
-fn get_private_ip() -> Result<String, Box<dyn Error>> {
-    let socket = UdpSocket::bind("0.0.0.0:0")?;
-    socket.connect("8.8.8.8:80")?;
-    let local_addr = socket.local_addr()?;
-    Ok(local_addr.ip().to_string())
-}
-
-async fn notify_service_readey(consistent_hashing_ip: String) {
-    let client = Client::new();
-
-    let ip = get_private_ip().unwrap();
-
-    let mut payload = HashMap::new();
-    payload.insert("value", &ip);
-    
-    let uri = format!("http://{consistent_hashing_ip}:8000/add-node");
-
-    let response = client.post(&uri)
-        .json(&payload)
-        .send().await.unwrap();
-
-    let response_text = response.text().await.unwrap();
-    println!("{}", response_text);
+    return vectored.join(".");
 
 }
 
-#[launch]
-async fn rocket() -> _ {
+struct Node {
+    pub ip: String,
+}
+
+impl Identifier for Node {
+    fn identify(&self) -> usize {
+        let ip_parts: Vec<String> = self.ip
+            .split('.')
+            .map(|part| format!("{:03}", part.parse::<u32>().unwrap_or(0)))
+            .collect();
+
+        let x = ip_parts.join("");
+        let v = x.parse::<usize>().unwrap();
+        v
+    }
+}
+
+fn main() {
     println!("Starting Rocket server...");
 
-    dotenv().ok();
+    let n1 = Node {
+        ip: "178.12.2.0".to_string()
+    };
 
-    let consistent_hashing_ip = env::var("CONSISTENT_HASHING_IP").unwrap();
-    notify_service_readey(consistent_hashing_ip).await;
-    
-    rocket::build()
-        .mount("/", routes![write_data])
+    let v = n1.identify();
+    println!("The thing is {}", v);
+
+    let t = u128_to_string(n1.identify() as u128);
+    println!("{}", t);
+
 }
