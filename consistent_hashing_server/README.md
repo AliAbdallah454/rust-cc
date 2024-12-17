@@ -8,6 +8,10 @@ This project implements a distributed server system that manages ECS tasks and p
 
 ## Core Components
 
+### Server Initialization
+
+- When the Consistent Hashing Server is initialized, it calls the `get_ecs_task_private_ips` function to retrieve the private IPs of the tasks currently    running in the leaf service. This step is crucial as it allows the server to add these tasks to the consistent hashing ring before launching the HTTP server. This ensures that the server can effectively manage tasks, especially in scenarios where it is restarted.
+
 ### API Endpoints
 
 - `/remove-node/<ip>` endpoint
