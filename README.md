@@ -1,2 +1,1 @@
-[Consistent Hashing Server README](https://github.com/yourusername/consistent_hashing_server/blob/main/README.md)  
-[OpenResty README](https://openresty.org/en/)
+For the Consistent Hashing Server documentation, please refer to the `consistent_hashing_server` folder. Similarly, for OpenResty (Nginx) documentation, please refer to the `openresty` folder
