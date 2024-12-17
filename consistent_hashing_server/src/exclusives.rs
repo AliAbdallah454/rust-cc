@@ -19,5 +19,5 @@ impl Exclusive
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RedirectInfo {
     pub exclusive: Exclusive,
-    pub destination: String
+    pub destination: u128
 }
