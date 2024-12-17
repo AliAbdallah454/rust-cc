@@ -1,4 +1,4 @@
-use aws_sdk_ecs::{operation::{create_cluster::CreateClusterOutput, run_task::RunTaskOutput, stop_task::StopTaskOutput}, types::{AwsVpcConfiguration, NetworkConfiguration}};
+use aws_sdk_ecs::{operation::{create_cluster::CreateClusterOutput, run_task::RunTaskOutput, stop_task::StopTaskOutput}, types::{AwsVpcConfiguration, DesiredStatus, NetworkConfiguration}};
 
 type EcsError = aws_sdk_ecs::Error;
 
@@ -85,20 +85,25 @@ pub async fn stop_task(ecs: &aws_sdk_ecs::Client, cluster_name: &str, ip: &str) 
 
 }
 
-// you must handle emtpy task error
-pub async fn get_ecs_task_private_ips(ecs: &aws_sdk_ecs::Client, cluster_name: &str, task_family: &str) -> Result<Vec<String>, EcsError> {
 
-    let tasks_response = ecs
+// you must handle empty error
+pub async fn get_ecs_task_private_ips(ecs: &aws_sdk_ecs::Client, cluster_name: &str, service_name: &str) -> Result<Vec<String>, EcsError> {
+
+    let list_tasks_output = ecs
         .list_tasks()
         .cluster(cluster_name)
-        .family(task_family)
-        .desired_status(aws_sdk_ecs::types::DesiredStatus::Running)
+        .service_name(service_name)
+        .desired_status(DesiredStatus::Running)
         .send()
         .await?;
-    println!("Hi");
-    let task_arns = tasks_response.task_arns().to_vec();
 
-    let tasks_description = ecs
+    let task_arns = list_tasks_output.task_arns.unwrap_or_default();
+
+    if task_arns.is_empty() {
+        println!("No running tasks found.");
+    }
+
+    let describe_tasks_output = ecs
         .describe_tasks()
         .cluster(cluster_name)
         .set_tasks(Some(task_arns))
@@ -106,19 +111,21 @@ pub async fn get_ecs_task_private_ips(ecs: &aws_sdk_ecs::Client, cluster_name: &
         .await?;
 
     let mut ips = vec![];
-    for task in tasks_description.tasks() {
+    for task in describe_tasks_output.tasks() {
+        println!("last status: {}", task.last_status().unwrap());
+        if task.last_status() != Some("RUNNING") { continue; }
         let attachments = task.attachments().to_vec();
         let _task_arn = task.task_arn().expect("Task arn should never fail");
         for attachment in attachments {
             for kvp in attachment.details().iter() {
                 if kvp.name() == Some("privateIPv4Address"){
                     let ip = kvp.value().unwrap();
-                    println!("Adding {}", ip);
                     ips.push(ip.to_string());
                 }
             }
         }
     }
+    
     return Ok(ips);
 
 }
