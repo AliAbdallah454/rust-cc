@@ -3,10 +3,10 @@ use std::sync::{Arc, Mutex};
 use rocket::serde::{json::Json, Deserialize, Serialize};
 use rocket::{tokio, State};
 use aws_config::{meta::region::RegionProviderChain, BehaviorVersion};
-use consisten_hashing_server::ecs_functions::{get_ecs_task_private_ips, launch_task, stop_task};
+use consisten_hashing_server::ecs_functions::{get_ecs_task_private_ips, launch_task};
 use serde_json::Value;
 use consisten_hashing_server::exclusives::RedirectInfo;
-use consisten_hashing_server::utils::{check_alive, get_private_ip};
+use consisten_hashing_server::utils::get_private_ip;
 use consistent_hasher::{LDB, Identifier, Transaction};
 
 #[macro_use] extern crate rocket;
@@ -46,7 +46,7 @@ async fn redirect(input: Json<RedirectInfo>) {
 }
 
 #[post("/remove-node/<ip>")]
-async fn remove_node(ip: &str, ring: &State<Arc<Mutex<LDB>>>, ecs: &State<aws_sdk_ecs::Client>) -> Json<Vec<Transaction<u128>>> {
+async fn remove_node(ip: &str, ring: &State<Arc<Mutex<LDB>>>, _ecs: &State<aws_sdk_ecs::Client>) -> Json<Vec<Transaction<u128>>> {
 
     let ring_ref = Arc::clone(ring);
 
@@ -275,48 +275,39 @@ async fn rocket() -> _ {
     let ecs = aws_sdk_ecs::Client::new(&config);
 
     println!("Initialized ring");
-    // let ring = ConsistentHashing::new(6);
-    // let ring = Arc::new(Mutex::new(ring));
 
     let ring = LDB::new(64, 5);
     let ring = Arc::new(Mutex::new(ring));
 
-    // let cluster_name = String::from("value");
-    // let task_family = String::from("value");
+    let cluster_name = String::from("egret-db-cluster");
+    let service_name = String::from("leaf-service");
 
     // checking if there are leafs running (in case dba is restarting)
-    // let ips = match get_ecs_task_private_ips(&ecs, &cluster_name, &task_family).await {
-    //     Ok(ip_vec) => {
-    //         println!("Adding: {:?}", &ip_vec);
-    //         ip_vec
-    //     },
-    //     Err(e) => {
-    //         println!("Error: {:?}", e);
-    //         println!("Service is empty");
-    //         Vec::new()
-    //     }
-    // };
+    let ips = match get_ecs_task_private_ips(&ecs, &cluster_name, &service_name).await {
+        Ok(ip_vec) => {
+            println!("Adding: {:?}", &ip_vec);
+            ip_vec
+        },
+        Err(e) => {
+            println!("Error: {:?}", e);
+            println!("Service is empty");
+            Vec::new()
+        }
+    };
 
-    // {
-    //     let mut ring = ring.lock().unwrap();
-    //     let mut handles = vec![];
-    //     for ip in ips {
-    //         let handle = tokio::spawn(async move {
-    //             if check_alive(&ip).await {
-    //                 ring.add_node(&ip).unwrap();
-    //                 println!("Added {}", &ip);
-    //             }
-    //             else {
-    //                 println!("Failed to add {}", &ip);
-    //             }
-    //         });
-    //         handles.push(handle);
-    //     }
+    {
+        let mut ring = ring.lock().unwrap();
+        for ip in ips {
+
+            let node_to_add = Leaf {
+                ip: ip.clone()
+            };
+
+            ring.add_node(node_to_add).unwrap();
+            println!("Added {}", &ip);
+        }
         
-    //     for handle in handles {
-    //         handle.await.unwrap();
-    //     }
-    // }
+    }
 
     rocket::build()
         .manage(ring.clone())
