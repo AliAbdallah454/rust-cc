@@ -9,6 +9,8 @@ use consisten_hashing_server::exclusives::RedirectInfo;
 use consisten_hashing_server::utils::get_private_ip;
 use consistent_hasher::{LDB, Identifier, Transaction};
 
+use consisten_hashing_server::exclusives::Exclusive;
+
 #[macro_use] extern crate rocket;
 
 #[derive(Deserialize)]
@@ -28,26 +30,32 @@ struct TaskInfo {
     pub task_name: String
 }
 
+#[derive(Serialize, Deserialize)]
+struct TransactionDto {
+    exclusive: Exclusive,
+    token: String
+}
+
 #[post("/redirect", format = "json", data = "<input>")]
 async fn redirect(input: Json<RedirectInfo>) {
 
-    println!("In redirect");
-
     let redirect_info = input.into_inner();
 
-    println!("{:?}", &redirect_info.exclusive);
+    let destination = u128_to_ip(redirect_info.destination);
+    let exclusive = redirect_info.exclusive;
 
-    let destination = u128_to_string(redirect_info.destination);
+    println!("reveived redirect to {}", &destination);
 
     let client = reqwest::Client::new();
     let destination_url = format!("http://{}:7000/exclusive", &destination);
-    client.post(destination_url).json(&redirect_info.exclusive).send().await.unwrap();
+    client.post(destination_url).json(&exclusive).send().await.unwrap();
 
 }
 
 #[post("/remove-node/<ip>")]
 async fn remove_node(ip: &str, ring: &State<Arc<Mutex<LDB>>>, _ecs: &State<aws_sdk_ecs::Client>) -> Json<Vec<Transaction<u128>>> {
 
+    println!("Received termination request from {}", ip);
     let ring_ref = Arc::clone(ring);
 
     let node_to_delete = Leaf {
@@ -56,8 +64,15 @@ async fn remove_node(ip: &str, ring: &State<Arc<Mutex<LDB>>>, _ecs: &State<aws_s
 
     let transactions = {
         let mut ring = ring_ref.lock().unwrap();
-        let transactions = ring.delete_node(node_to_delete).unwrap();
+        let delete_output = ring.delete_node(node_to_delete);
         drop(ring);
+        let transactions = match delete_output {
+            Ok(transactions) => transactions,
+            Err(e) => {
+                println!("Error: {:?}", e);
+                None
+            }
+        };
         transactions
     };
 
@@ -71,15 +86,16 @@ async fn remove_node(ip: &str, ring: &State<Arc<Mutex<LDB>>>, _ecs: &State<aws_s
 }
 
 #[post("/add-node", format = "json", data = "<input>")]
-async fn add_node(input: Json<Input>, ring: &State<Arc<Mutex<LDB>>>) -> Json<Value> {
+async fn add_node(input: Json<Input>, ring: &State<Arc<Mutex<LDB>>>, 
+    failed_exclusive: &State<Arc<Mutex<Vec<(Exclusive, String, String)>>>>) -> Json<Value> {
 
-    let input_value = input.value.clone();
-    println!("Adding node with ip: {}", input_value);
+    let ip = input.value.clone();
+    println!("Adding node with ip: {}", ip);
     let ring_ref = Arc::clone(ring);
     let mut ring = ring_ref.lock().expect("Failed to lock the consistent hashing ring");
     
     let node_to_add = Leaf {
-        ip: input_value,
+        ip: ip,
     };
 
     let transactions = match ring.add_node(node_to_add) {
@@ -111,6 +127,9 @@ async fn add_node(input: Json<Input>, ring: &State<Arc<Mutex<LDB>>>) -> Json<Val
     }
 
     for (key, transactions) in groups {
+
+        let failed_exclusive_ref = Arc::clone(&failed_exclusive);
+
         tokio::spawn(async move {
 
             println!("Current transactions: ");
@@ -121,45 +140,53 @@ async fn add_node(input: Json<Input>, ring: &State<Arc<Mutex<LDB>>>) -> Json<Val
             let source = key.0;
             let destination = key.1;
 
-            let source_ip = u128_to_string(source);
-            let destination_ip = u128_to_string(destination);
+            let source_ip = u128_to_ip(source);
+            let destination_ip = u128_to_ip(destination);
 
             let client = reqwest::Client::new();
 
             let source_uri = format!("http://{}:7000/transactions", &source_ip);
-            let get_response = client.post(&source_uri).json(&transactions).send().await.expect("this should not panic");
+            let exclusive_fetch_response = client.post(&source_uri).json(&transactions).send().await.expect("this should not panic");
 
-            if get_response.status() != 200 {
+            if exclusive_fetch_response.status() != 200 {
                 println!("Unable to get exclusive");
                 return;
             }
 
-            let data = get_response.text().await.unwrap();
-            let json_data: Value = serde_json::from_str(&data).unwrap();
-            let (exclusive, token): (Value, String) = serde_json::from_value(json_data).unwrap();
-
-            println!("{:?}", exclusive);
+            let transaction_dto: TransactionDto = exclusive_fetch_response.json().await.expect("Failed to parse response as TransactionDto");
             
+            let exclusive = transaction_dto.exclusive;
+            let token = transaction_dto.token;
+
+            println!("Exclusive: {:?}", exclusive);
+            println!("Token: {}", token);
+
             let destination_uri = format!("http://{}:7000/exclusive", &destination_ip);
-            let mut post_response = None;
-            for _ in 0..4 {
-                post_response = Some(client.post(&destination_uri).json(&exclusive).send().await);
-                if post_response.as_ref().unwrap().is_ok() {
+            let mut exclusive_send_response = None;
+
+            for _ in 0..10 {
+                exclusive_send_response = Some(client.post(&destination_uri).json(&exclusive).send().await);
+                if exclusive_send_response.as_ref().unwrap().is_ok() {
                     break;
                 }
                 println!("Connection refused for {}, retrying", &destination_ip);
                 tokio::time::sleep(tokio::time::Duration::from_millis(250)).await;
             }
 
-            let post_response = post_response.unwrap().unwrap();
-            if post_response.status() != 200 {
-                println!("Exclusive wasn't ingested");
-                return
+            if exclusive_send_response.is_none() {
+                failed_exclusive_ref.lock().unwrap().push((exclusive, destination_ip.clone(), token.clone()));
+                return;
             }
-            println!("{:?}", post_response);
 
-            let post_data = post_response.text().await.unwrap();
-            println!("data: {}", post_data);
+            // let exclusive_send_response = exclusive_send_response.unwrap().unwrap();
+            // if exclusive_send_response.status() != 200 {
+            //     println!("Exclusive wasn't ingested");
+            //     return
+            // }
+            // println!("{:?}", exclusive_send_response);
+
+            // let post_data = exclusive_send_response.text().await.unwrap();
+            // println!("data: {}", post_data);
 
             let delete_uri = format!("http://{}:7000/delete-batch/{}", &source_ip, &token);
             let delete_response = client.post(delete_uri).send().await.unwrap();
@@ -204,7 +231,7 @@ async fn get_node(input: Json<Input>, ring: &State<Arc<Mutex<LDB>>>) -> Json<Get
     println!("Input val is: {}", input_value);
     let mut ring = ring.lock().expect("Failed to lock the consistent hashing ring");
     let res = ring.key(&input_value).unwrap();
-    let node = u128_to_string(res.0);
+    let node = u128_to_ip(res.0);
     let hash = res.1.to_string(); // parse hash to string
     
     println!("hash {} in {}", &hash, &node);
@@ -220,7 +247,7 @@ fn hello() -> &'static str {
     "Hello, world!"
 }
 
-fn u128_to_string(mut number: u128) -> String {
+fn u128_to_ip(mut number: u128) -> String {
     let mut output = String::new();
 
     while number != 0 {
@@ -309,9 +336,12 @@ async fn rocket() -> _ {
         
     }
 
+    let failed_exclusives: Arc<Mutex<Vec<(Exclusive, String, String)>>> = Arc::new(Mutex::new(Vec::new()));
+
     rocket::build()
         .manage(ring.clone())
         .manage(ecs)
+        .manage(failed_exclusives)
         .mount("/", routes![
             hello,
             get_node,
