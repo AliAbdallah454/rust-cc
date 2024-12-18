@@ -37,18 +37,35 @@ struct TransactionDto {
 }
 
 #[post("/redirect", format = "json", data = "<input>")]
-async fn redirect(input: Json<RedirectInfo>) {
+async fn redirect(input: Json<RedirectInfo>, 
+    failed_exclusive: &State<Arc<Mutex<Vec<(Exclusive, String, String)>>>>) {
 
     let redirect_info = input.into_inner();
+    let failed_exclusive_ref = Arc::clone(failed_exclusive);
 
-    let destination = u128_to_ip(redirect_info.destination);
+    let destination_ip = u128_to_ip(redirect_info.destination);
     let exclusive = redirect_info.exclusive;
 
-    println!("reveived redirect to {}", &destination);
+    println!("reveived redirect to {}", &destination_ip);
 
     let client = reqwest::Client::new();
-    let destination_url = format!("http://{}:7000/exclusive", &destination);
-    client.post(destination_url).json(&exclusive).send().await.unwrap();
+    let destination_uri = format!("http://{}:7000/exclusive", &destination_ip);
+
+    let mut exclusive_send_response = None;
+
+    for _ in 0..10 {
+        exclusive_send_response = Some(client.post(&destination_uri).json(&exclusive).send().await);
+        if exclusive_send_response.as_ref().unwrap().is_ok() {
+            break;
+        }
+        println!("Connection refused for {}, retrying", &destination_ip);
+        tokio::time::sleep(tokio::time::Duration::from_millis(250)).await;
+    }
+
+    if exclusive_send_response.is_none() {
+        failed_exclusive_ref.lock().unwrap().push((exclusive, destination_ip.clone(), "".to_string()));
+        return;
+    }
 
 }
 
